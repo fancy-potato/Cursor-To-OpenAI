@@ -120,6 +120,11 @@ router.post('/chat/completions', async (req, res) => {
         'Host': 'api2.cursor.sh',
       },
     })
+    if (availableModelsResponse.status != 200) {
+      res.status(500).json(await availableModelsResponse.json());
+      res.end();
+      return;
+    }
 
     const cursorBody = generateCursorBody(messages, model);
     const response = await fetch('https://api2.cursor.sh/aiserver.v1.AiService/StreamChat', {
@@ -154,12 +159,13 @@ router.post('/chat/completions', async (req, res) => {
       res.setHeader('Connection', 'keep-alive');
 
       const responseId = `chatcmpl-${uuidv4()}`;
-
+      let started = false;
       try {
         for await (const chunk of response.body) {
           let text = chunkToUtf8String(chunk);
 
           if (text.length > 0) {
+            started = true;
             res.write(
               `data: ${JSON.stringify({
                 id: responseId,
@@ -181,9 +187,15 @@ router.post('/chat/completions', async (req, res) => {
       } catch (streamError) {
         console.error('Stream error:', streamError);
         if (streamError.name === 'TimeoutError') {
-          res.write(`data: ${JSON.stringify({ error: 'Server response timeout' })}\n\n`);
+          if (started)
+            res.write(`data: ${JSON.stringify({ error: 'Server response timeout' })}\n\n`);
+          else
+            res.status(500).write(`data: ${JSON.stringify({ error: 'Server response timeout' })}\n\n`);
         } else {
-          res.write(`data: ${JSON.stringify({ error: 'Stream processing error' })}\n\n`);
+          if (started)
+            res.write(`data: ${JSON.stringify({ error: 'Stream processing error' })}\n\n`);
+          else
+            res.status(500).write(`data: ${JSON.stringify({ error: 'Stream processing error' })}\n\n`);
         }
       } finally {
         res.write('data: [DONE]\n\n');
@@ -224,7 +236,8 @@ router.post('/chat/completions', async (req, res) => {
       } catch (error) {
         console.error('Non-stream error:', error);
         if (error.name === 'TimeoutError') {
-          return res.status(408).json({ error: 'Server response timeout' });
+          // return res.status(408).json({ error: 'Server response timeout' });
+          return res.status(500).json({ error: 'Server response timeout' });
         }
         throw error;
       }
@@ -240,7 +253,8 @@ router.post('/chat/completions', async (req, res) => {
         res.write(`data: ${JSON.stringify(errorMessage)}\n\n`);
         return res.end();
       } else {
-        return res.status(error.name === 'TimeoutError' ? 408 : 500).json(errorMessage);
+        // return res.status(error.name === 'TimeoutError' ? 408 : 500).json(errorMessage);
+        return res.status(500).json(errorMessage);
       }
     }
   }

@@ -5,6 +5,13 @@ const { v4: uuidv4 } = require('uuid');
 const $root = require('../proto/message.js');
 
 const regex = /<\|BEGIN_SYSTEM\|>.*?<\|END_SYSTEM\|>.*?<\|BEGIN_USER\|>.*?<\|END_USER\|>/s;
+class UpStreamException extends Error {
+  constructor(rawBody, message) {
+    super(message);
+    this.name = 'UpStreamException';
+    this.rawBody = rawBody;
+  }
+}
 
 function generateCursorBody(messages, modelName) {
 
@@ -93,7 +100,8 @@ function chunkToUtf8String(chunk) {
         if (message != null && (typeof message !== 'object' || 
           (Array.isArray(message) ? message.length > 0 : Object.keys(message).length > 0))){
             console.error(utf8)
-        }      
+            throw new UpStreamException(utf8, 'Upstream error')
+        }
       }
       else if (magicNumber == 3) {
         // Gzip json message
@@ -105,7 +113,9 @@ function chunkToUtf8String(chunk) {
       i += 5 + dataLength - 1
     }
   } catch (err) {
-    //
+    if (err instanceof UpStreamException) {
+      throw err
+    }
   }
 
   return results.join('')
@@ -162,5 +172,6 @@ module.exports = {
   generateCursorBody,
   chunkToUtf8String,
   generateHashed64Hex,
-  generateCursorChecksum
+  generateCursorChecksum,
+  UpStreamException
 };

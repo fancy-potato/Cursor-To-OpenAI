@@ -3,7 +3,7 @@ const router = express.Router();
 
 const $root = require('../proto/message.js');
 const { v4: uuidv4, v5: uuidv5 } = require('uuid');
-const { generateCursorBody, chunkToUtf8String, generateHashed64Hex, generateCursorChecksum } = require('../utils/utils.js');
+const { generateCursorBody, chunkToUtf8String, generateHashed64Hex, generateCursorChecksum, UpStreamException } = require('../utils/utils.js');
 
 router.get("/models", async (req, res) => {
   try{
@@ -186,7 +186,13 @@ router.post('/chat/completions', async (req, res) => {
         }
       } catch (streamError) {
         console.error('Stream error:', streamError);
-        if (streamError.name === 'TimeoutError') {
+        if (streamError.name === 'UpStreamException') {
+          if (started)
+            res.write(`data: ${streamError.rawBody}\n\n`);
+          else
+            res.status(500).write(`data: ${streamError.rawBody}\n\n`);
+        }
+        else if (streamError.name === 'TimeoutError') {
           if (started)
             res.write(`data: ${JSON.stringify({ error: 'Server response timeout' })}\n\n`);
           else
@@ -210,7 +216,7 @@ router.post('/chat/completions', async (req, res) => {
         // 对解析后的字符串进行进一步处理
         text = text.replace(/^.*<\|END_USER\|>/s, '');
         text = text.replace(/^\n[a-zA-Z]?/, '').trim();
-        // console.log(text)
+        console.log(text)
 
         return res.json({
           id: `chatcmpl-${uuidv4()}`,

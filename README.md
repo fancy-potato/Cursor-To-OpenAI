@@ -1,53 +1,110 @@
 # Cursor To OpenAI
 
-将 Cursor 编辑器转换为 OpenAI 兼容的 API 接口服务。
+Convert the Cursor Editor to an OpenAI API interface service.
 
-## 项目简介
+## Introduction
 
-本项目提供了一个代理服务，可以将 Cursor 编辑器的 AI 能力转换为与 OpenAI API 兼容的接口，让您能够在其他应用中复用 Cursor 的 AI 能力。
-- 支持同时传入多个Cookie，使用多个英文逗号分隔
+This project provides a proxy service that converts the AI chat of the Cursor Editor into an OpenAPI API, allowing you to reuse the LLM of the Cursor in other applications.
 
-## 使用前准备
+## Preparsuitue
 
-1. 访问 [www.cursor.com](https://www.cursor.com) 并完成注册登录（赠送 150 次快速响应，可通过删除账号再注册重置）
-2. 在浏览器中打开开发者工具（F12）
-3. 找到 应用-Cookies 中名为 `WorkosCursorSessionToken` 的值并保存(相当于 openai 的密钥)
+Visit [Cursor](https://www.cursor.com) and register a account.
+- 150 fast premium requests are given, which can be reset by deleting the account and then registering again
+- Suggest to use gmail/outlook email, some temp emails have been disabled by Cursor.
 
+### Get Cursor client cookie
 
+The cookie from Cursor webpage does not work in Cursor-To-OpenAI server. You need to get the Cursor client cookie following these steps:
 
-## 接口说明
+1. Run `npm install` to initialize the environment。
+2. Run `npm run login`. Open the URL shows in the log, and then login your account.
+3. The cookie shows in your command is the `Curosr Cookie` value. Copy and save it to your notepad.
 
-### 基础配置
+The log of this command looks like:
+```
+[Log] Please open the following URL in your browser to login:
+https://www.cursor.com/loginDeepControl?challenge=6aDBevuHkK-HLiZ<......>k2lEjbVRMpg&uuid=5147ac09<....>5fe5f3aeb&mode=login      <-- Copy the url and open it in your browser.
+[Log] Waiting for login... (1/60)
+[Log] Waiting for login... (2/60)
+[Log] Waiting for login... (3/60)
+[Log] Waiting for login... (4/60)
+[Log] Login successfully. Your Cursor cookie:
+user_01JJF<.....>K3F4T8%3A%3AeyJhbGciOiJIUzI1NiIsInR5cCI6Ikp<...................>AsCpbPfnlHy022WxmlKIt4Q7Ll0     <-- This is the Cursor cookie, please save it.
+```
 
-- 接口地址：`http://localhost:3010/v1/chat/completions`
-- 请求方法：POST
-- 认证方式：Bearer Token（使用 WorkosCursorSessionToken 的值，支持英文逗号分隔的 key 入参）
+#### API to get Cursor client cookie
 
-### 请求格式和响应格式参考 openai
+We provide an API to save you from manual login. You need to log in to your Cursor account in browser and get `WorkosCursorSessionToken` from Application-Cookie.
+1. Get Cursor client cookie
+    - Url：`http://localhost:3010/cursor/loginDeepContorl`
+    - Request：`GET`
+    - Authentication：`Bearer Token`（The value of `WorkosCursorSessionToken` from Cursor webpage)
+    - Reponse: In JSON, the value of `accessToken` is the `Cursor Cookie` in JWT format. That's what you want.
 
+Sample request:
+```
+import requests
 
-## 运行和部署
+WorkosCursorSessionToken = "{{{Repalce by your WorkosCursorSessionToken from cookie in browser}}}}"
+response = requests.get("http://localhost:3010/cursor/loginDeepControl", headers={
+    "authorization": f"Bearer {WorkosCursorSessionToken}"
+})
+data = response.json()
+cookie = data["accessToken"]
+print(cookie)
+```
 
-### Docker 部署
+## How to Run
 
+### Run in docker
 ```
 docker run -d --name cursor-to-openai -p 3010:3010 ghcr.io/jiuz-chn/cursor-to-openai:latest
 ```
 
-### 本地开发
-
+### Run in npm
 ```
-cd Cursor-To-OpenAI
 npm install
 npm run start
 ```
 
-## 注意事项
+## How to use the server
 
-- 请妥善保管您的 WorkosCursorSessionToken，不要泄露给他人
-- 本项目仅供学习研究使用，请遵守 Cursor 的使用条款
+1. Get models
+    - Url：`http://localhost:3010/v1/models`
+    - Request：`GET`
+    - Authentication：`Bearer Token`（The value of `Cursor Cookie`)
 
-## 致谢
+2. Chat completion
+    - Url：`http://localhost:3010/v1/chat/completions`
+    - Request：`POST`
+    - Authentication：`Bearer Token`（The value of `Cursor Cookie`，supports comma-separated values）
 
-- 本项目基于 [cursor-api](https://github.com/zhx47/cursor-api)(by zhx47) 进行优化。
-- 本项目整合 [cursor-api](https://github.com/lvguanjun/cursor-api)(by lvguanjun) 中的改进。
+ for the response body, please refer to the OpenAI interface
+
+### Python demo
+```
+from openai import OpenAI
+
+client = OpenAI(api_key="{{{Replace by the Cursor cookie of your account. It starts with user_...}}}",
+                base_url="http://localhost:3010/v1")
+
+response = client.chat.completions.create(
+    model="claude-3-7-sonnet",
+    messages=[
+        {"role": "user", "content": "Hello."},
+    ],
+    stream=False
+)
+
+print(response.choices)
+```
+
+## Notes
+
+- Please keep your Cursor cookie properly and do not disclose it to others
+- This project is for study and research only, please abide by the Cursor Terms of Use
+
+## Acknowledgements
+
+- This project is based on [cursor-api](https://github.com/zhx47/cursor-api)(by zhx47).
+- This project integrates the commits in [cursor-api](https://github.com/lvguanjun/cursor-api)(by lvguanjun).
